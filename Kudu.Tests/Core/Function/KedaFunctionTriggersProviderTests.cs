@@ -106,6 +106,41 @@ namespace Kudu.Tests.Core.Function
             }
         }
 
+        [Theory]
+        [InlineData("connection", "containerName", "leaseConnection", "leaseContainerName")]
+        [InlineData("connectionStringSetting", "collectionName", "leaseConnectionStringSetting", "leaseCollectionName")]
+        public void PopulateMetadataDictionary_CorrectlyPopulatesCosmosDbTriggerMetadata(string connectionField, string containerNameField, string leaseConnectionField, string leaseContainerNameField)
+        {
+            var bindingJObject = new JObject
+            {
+                ["type"] = "cosmosDbTrigger",
+                ["name"] = "myBinding",
+                [connectionField] = "myConnection",
+                ["databaseName"] = "myDatabaseName",
+                [containerNameField] = "myContainerName",
+                [leaseConnectionField] = "myLeaseConnection",
+                ["leaseDatabaseName"] = "myLeaseDatabaseName",
+                [leaseContainerNameField] = "myLeaseContainerName",
+                ["leaseContainerPrefix"] = "myLeaseContainerPrefix",
+            };
+
+            IDictionary<string, string> metadata = KedaFunctionTriggerProvider.PopulateMetadataDictionary(bindingJObject, "myFunction");
+
+            Assert.NotNull(metadata);
+            Assert.NotEmpty(metadata);
+
+            Assert.False(metadata.ContainsKey("type"));
+            Assert.False(metadata.ContainsKey("name"));
+
+            Assert.Equal("myConnection", metadata["connection"]);
+            Assert.Equal("myDatabaseName", metadata["databaseId"]);
+            Assert.Equal("myContainerName", metadata["containerId"]);
+            Assert.Equal("myLeaseConnection", metadata["leaseConnection"]);
+            Assert.Equal("myLeaseDatabaseName", metadata["leaseDatabaseId"]);
+            Assert.Equal("myLeaseContainerName", metadata["leaseContainerId"]);
+            Assert.Equal("myLeaseContainerPrefix", metadata["processorName"]);
+        }
+
          public void PopulateMetadataDictionary_KedaV1_CorrectlyPopulatesRabbitMQMetadata()
         {
             string jsonText = @"

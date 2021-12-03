@@ -235,34 +235,18 @@ namespace Kudu.Core.Functions
                 throw new ArgumentNullException(nameof(triggerType));
             }
 
-            triggerType = triggerType.ToLower();
-
-            switch (triggerType)
+            return triggerType.ToLower() switch
             {
-                case "queuetrigger":
-                    return "azure-queue";
-
-                case "kafkatrigger":
-                    return "kafka";
-
-                case "blobtrigger":
-                    return "azure-blob";
-
-                case "servicebustrigger":
-                    return "azure-servicebus";
-
-                case "eventhubtrigger":
-                    return "azure-eventhub";
-
-                case "rabbitmqtrigger":
-                    return "rabbitmq";
-
-                case "httptrigger":
-                    return "httpTrigger";
-
-                default:
-                    return string.Empty;
-            }
+                TriggerTypes.AzureBlobStorage => "azure-blob",
+                TriggerTypes.AzureCosmosDb => "azure-cosmosdb",
+                TriggerTypes.AzureEventHubs => "azure-eventhub",
+                TriggerTypes.AzureServiceBus => "azure-servicebus",
+                TriggerTypes.AzureStorageQueue => "azure-queue",
+                TriggerTypes.Http => "httpTrigger",
+                TriggerTypes.Kafka => "kafka",
+                TriggerTypes.RabbitMq => "rabbitmq",
+                _ => string.Empty,
+            };
         }
 
         internal static bool TryGetDurableKedaTrigger(string hostJsonText, out ScaleTrigger scaleTrigger)
@@ -390,6 +374,21 @@ namespace Kudu.Core.Functions
                     metadata["hostFromEnv"] = metadata["connectionStringSetting"];
                     metadata.Remove("connectionStringSetting");
                     break;
+
+                case TriggerTypes.AzureCosmosDb:
+                    metadata = new Dictionary<string, string>
+                    {
+                        // Not including 'scalerAddress' field since it can vary with environment.
+                        ["connection"] = metadata.GetValue("connection", "connectionStringSetting"),
+                        ["databaseId"] = metadata.GetValue("databaseName"),
+                        ["containerId"] = metadata.GetValue("containerName", "collectionName"),
+                        ["leaseConnection"] = metadata.GetValue("leaseConnection", "leaseConnectionStringSetting"),
+                        ["leaseDatabaseId"] = metadata.GetValue("leaseDatabaseName"),
+                        ["leaseContainerId"] = metadata.GetValue("leaseContainerName", "leaseCollectionName"),
+                        ["processorName"] = metadata.GetValue("leaseContainerPrefix"),
+                    };
+
+                    break;
             }
 
             // Clean-up for all triggers
@@ -399,6 +398,12 @@ namespace Kudu.Core.Functions
 
             metadata["functionName"] = functionName;
             return metadata;
+        }
+
+        private static string GetValue(this IDictionary<string, string> dictionary, params string[] keys)
+        {
+            string containedKey = keys.FirstOrDefault(key => dictionary.ContainsKey(key));
+            return containedKey != null ? dictionary[containedKey] : null;
         }
 
         internal class FunctionTrigger
@@ -418,9 +423,11 @@ namespace Kudu.Core.Functions
         static class TriggerTypes
         {
             public const string AzureBlobStorage = "blobtrigger";
+            public const string AzureCosmosDb = "cosmosdbtrigger";
             public const string AzureEventHubs = "eventhubtrigger";
             public const string AzureServiceBus = "servicebustrigger";
             public const string AzureStorageQueue = "queuetrigger";
+            public const string Http = "httptrigger";
             public const string Kafka = "kafkatrigger";
             public const string RabbitMq = "rabbitmqtrigger";
         }
